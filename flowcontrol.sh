@@ -8,6 +8,7 @@ mkdir $dir/$net
 touch $dir/$net/input
 touch $dir/$net/output
 touch $dir/$net/${net}.sh
+#检查是否已经设置过控制
 if [[ -n $check ]];then
     read -p '已设置，是否重新覆盖(y/n)' answer
     if [[ $answer == 'y' ]];then
@@ -20,6 +21,7 @@ else
         iptables -A INPUT -p tcp --dport $net
         iptables -A OUTPUT -p tcp --sport $net
 fi
+#写入各个端口目录脚本
 (
 cat << EOF
 while true; 
@@ -30,6 +32,7 @@ do
   out=\$(tail -n 1 $dir/$net/output |tr -cd "[A-Z]")
   in=\$(tail -n 1 $dir/$net/input |tr -cd "[A-Z]")
   ip_number=\$(netstat -an|grep $net|grep ESTABLISHED|awk '{print \$5}'|cut -d ':' -f 1|sort -u|wc -l)
+  \#检测限制IP是否超过设置的数量
   if [ \$ip_number -gt $ip_control ];then
     echo -e "`date +%Y%m%d%k%M`   在线人数:$ip_number,超过了" >> $dir/$net/ip_over
     iptables -A OUTPUT -p tcp --sport $net -j DROP
@@ -38,6 +41,7 @@ do
     iptables -D OUTPUT -p tcp --sport $net -j DROP
     iptables -D INPUT -p tcp --sport $net -j DROP
   fi
+  \#检测端口流量是否超过最大限制
   case \$out in
      G)
         flow_input=\$(tail -n 1 $dir/$net/input|awk 'BEGIN{FS="G"}{print \$1}')
