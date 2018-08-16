@@ -2,6 +2,7 @@
 dir=$(cd `dirname $0`;pwd)
 read -p "请输入要监控的端口号:" net
 read -p "请输入要监控的流量大小(以G为单位):"  flow_size
+read -p "限制同时使用的IP数量:" ip_control
 check=$(iptables -L -n -v|grep $net)
 mkdir $dir/$net
 touch $dir/$net/input
@@ -23,11 +24,20 @@ fi
 cat << EOF
 while true; 
 do
-  iptables -L -v -n|grep $net|grep dpt|awk '{print \$2}'|sed -n '1p' >> /root/flowcheck/20025/input
-  iptables -L -v -n|grep $net|grep spt|awk '{print \$2}'|sed -n '1p' >> /root/flowcheck/20025/output
   sleep 10
+  iptables -L -v -n|grep $net|grep dpt|awk '{print \$2}'|sed -n '1p' >> $dir/$net/input
+  iptables -L -v -n|grep $net|grep spt|awk '{print \$2}'|sed -n '1p' >> $dir/$net/output
   out=\$(tail -n 1 $dir/$net/output |tr -cd "[A-Z]")
   in=\$(tail -n 1 $dir/$net/input |tr -cd "[A-Z]")
+  ip_number=\$(netstat -an|grep $net|grep ESTABLISHED|awk '{print \$5}'|cut -d ':' -f 1|sort -u|wc -l)
+  if [ \$ip_number -gt $ip_control ];then
+    echo -e "`date +%Y%m%d%k%M`   在线人数:$ip_number,超过了" >> $dir/$net/ip_over
+    iptables -A OUTPUT -p tcp --sport $net -j DROP
+    iptables -A INPUT -p tcp --sport $net -j DROP
+  else
+    iptables -D OUTPUT -p tcp --sport $net -j DROP
+    iptables -D INPUT -p tcp --sport $net -j DROP
+  fi
   case \$out in
      G)
         flow_input=\$(tail -n 1 $dir/$net/input|awk 'BEGIN{FS="G"}{print \$1}')
